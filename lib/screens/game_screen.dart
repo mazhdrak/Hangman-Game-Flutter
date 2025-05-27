@@ -1,13 +1,13 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_hangman/components/word_button.dart';
-import 'package:flutter_hangman/screens/home_screen.dart';
-import 'package:flutter_hangman/utilities/alphabet.dart';
-import 'package:flutter_hangman/utilities/constants.dart';
-import 'package:flutter_hangman/utilities/hangman_words.dart';
-import 'package:flutter_hangman/utilities/score_db.dart' as score_database;
-import 'package:flutter_hangman/utilities/user_scores.dart';
+import 'package:hangman/components/word_button.dart';
+import 'package:hangman/screens/home_screen.dart';
+import 'package:hangman/utilities/alphabet.dart';
+import 'package:hangman/utilities/constants.dart';
+import 'package:hangman/utilities/hangman_words.dart';
+import 'package:hangman/utilities/score_db.dart' as score_database;
+import 'package:hangman/utilities/user_scores.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:rflutter_alert/rflutter_alert.dart';
 

@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_hangman/screens/home_screen.dart';
-import 'package:flutter_hangman/screens/score_screen.dart';
-import 'package:flutter_hangman/utilities/constants.dart';
+import 'package:hangman/screens/home_screen.dart';
+import 'package:hangman/screens/score_screen.dart';
+import 'package:hangman/utilities/constants.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:hangman/screens/about_screen.dart'; // Step 1: Add this import
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await MobileAds.instance.initialize();
   runApp(const MainApp());
 }
 
@@ -39,6 +43,7 @@ class MainApp extends StatelessWidget {
       routes: {
         'homePage': (context) => HomeScreen(),
         'scorePage': (context) => const ScoreScreen(),
+        'aboutPage': (context) => const AboutScreen(), // Step 2: Add this route
       },
     );
   }

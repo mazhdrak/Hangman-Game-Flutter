@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_hangman/screens/score_screen.dart';
-import 'package:flutter_hangman/utilities/score_db.dart' as score_database;
-import 'package:flutter_hangman/utilities/user_scores.dart';
+import 'package:hangman/screens/score_screen.dart';
+import 'package:hangman/utilities/score_db.dart' as score_database;
+import 'package:hangman/utilities/user_scores.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 
 class LoadingScreen extends StatefulWidget {

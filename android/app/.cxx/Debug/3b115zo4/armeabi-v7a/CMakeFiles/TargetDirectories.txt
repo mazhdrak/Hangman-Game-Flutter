@@ -1,0 +1,2 @@
+C:/Users/rmazh/Desktop/Coding/Hangman-Game-Flutter/android/app/.cxx/Debug/3b115zo4/armeabi-v7a/CMakeFiles/edit_cache.dir
+C:/Users/rmazh/Desktop/Coding/Hangman-Game-Flutter/android/app/.cxx/Debug/3b115zo4/armeabi-v7a/CMakeFiles/rebuild_cache.dir

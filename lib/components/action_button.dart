@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_hangman/utilities/constants.dart';
+import 'package:hangman/utilities/constants.dart';
 
 class ActionButton extends StatelessWidget {
   const ActionButton({super.key, required this.buttonTitle, this.onPress});

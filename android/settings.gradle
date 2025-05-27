@@ -1,20 +1,42 @@
+// android/settings.gradle
+
 pluginManagement {
     def flutterSdkPath = {
         def properties = new Properties()
+        // Assuming local.properties is in the android directory.
+        // If it's in the root of your Flutter project, adjust the path:
+        // file("../local.properties").withInputStream { properties.load(it) }
         file("local.properties").withInputStream { properties.load(it) }
-        def flutterSdkPath = properties.getProperty("flutter.sdk")
-        assert flutterSdkPath != null, "flutter.sdk not set in local.properties"
-        return flutterSdkPath
-    }
-    settings.ext.flutterSdkPath = flutterSdkPath()
+        def flutterSdk = properties.getProperty("flutter.sdk")
+        assert flutterSdk != null, "flutter.sdk not set in local.properties"
+        return flutterSdk
+    }()
 
-    includeBuild("${settings.ext.flutterSdkPath}/packages/flutter_tools/gradle")
+    // This line includes Flutter's own build logic, including the plugins.
+    includeBuild "$flutterSdkPath/packages/flutter_tools/gradle"
 
-    plugins {
-        id "dev.flutter.flutter-gradle-plugin" version "1.0.0" apply false
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal() // Needed for discovering plugins like dev.flutter.flutter-plugin-loader
     }
 }
 
-include ":app"
+plugins {
+    // This plugin replaces the old app_plugin_loader.gradle script.
+    id "dev.flutter.flutter-plugin-loader" version "1.0.0" apply true
 
-apply from: "${settings.ext.flutterSdkPath}/packages/flutter_tools/gradle/app_plugin_loader.gradle"
+    // Define the Android Gradle Plugin (AGP) version here but don't apply it globally.
+    // It will be applied in android/app/build.gradle.
+    // Choose an AGP version compatible with your Gradle version.
+    // If you updated to Gradle 8.7, AGP 8.5.0 is a good choice.
+    // If you used Gradle 8.5, AGP 8.4.0 or 8.4.1 would be suitable.
+    id "com.android.application" version "8.5.0" apply false // Example for Gradle 8.7+
+    // If you have library modules, you might also declare:
+    // id "com.android.library" version "8.5.0" apply false
+}
+
+include ':app'
+
+// **IMPORTANT:** Remove or comment out the old way of applying the script:
+// apply from: "$flutterSdkPath/packages/flutter_tools/gradle/app_plugin_loader.gradle" // <-- DELETE OR COMMENT THIS LINE
