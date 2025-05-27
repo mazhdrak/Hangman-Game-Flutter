@@ -16,7 +16,7 @@ class _AboutScreenState extends State<AboutScreen> {
   final String mitLicenseText = """..."""; // Your MIT license text here
 
   // !!! IMPORTANT: Replace this with the ACTUAL URL of YOUR hosted privacy policy
-  final String _privacyPolicyUrl = 'https://www.example.com/your-hangman-app-privacy-policy.html';
+  final String _privacyPolicyUrl = 'https://mazhdrak.github.io/Hangman-Game-Flutter/PRIVACY.MD';
 
   @override
   void initState() {
