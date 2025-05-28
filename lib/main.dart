@@ -3,12 +3,21 @@ import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:hangman/screens/home_screen.dart';
 import 'package:hangman/screens/score_screen.dart';
-import 'package:hangman/screens/about_screen.dart'; // Step 1: Add this import
+import 'package:hangman/screens/about_screen.dart';
 import 'package:hangman/utilities/constants.dart';
+import 'package:hangman/utilities/ad_helper.dart';
+import 'package:hangman/utilities/purchase_helper.dart'; // Import PurchaseHelper
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await MobileAds.instance.initialize();  // Initialize AdMob SDK
+  await PurchaseHelper.init();            // Initialize In-App Purchase
+
+  // Preload interstitial only if ads are not removed
+  if (PurchaseHelper.shouldShowAds()) {
+    AdHelper.loadInterstitialAd();
+  }
+
   runApp(const MainApp());
 }
 
@@ -25,10 +34,11 @@ class MainApp extends StatelessWidget {
     ]);
 
     return MaterialApp(
+      debugShowCheckedModeBanner: false, // <<< ADDED THIS LINE
       theme: ThemeData.dark().copyWith(
         tooltipTheme: TooltipThemeData(
           decoration: BoxDecoration(
-            color: kTooltipColor,
+            color: kTooltipColor, // Ensure kTooltipColor is defined in your constants.dart
             borderRadius: BorderRadius.circular(5.0),
           ),
           textStyle: const TextStyle(
@@ -45,7 +55,7 @@ class MainApp extends StatelessWidget {
       routes: {
         'homePage': (context) => HomeScreen(),
         'scorePage': (context) => const ScoreScreen(),
-        'aboutPage': (context) => const AboutScreen(),  // Step 2: Add this route
+        'aboutPage': (context) => const AboutScreen(),
       },
     );
   }

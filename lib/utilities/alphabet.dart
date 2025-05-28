@@ -1,3 +1,5 @@
+// lib/utilities/alphabet.dart
 class Alphabet {
-  String alphabet = 'abcdefghijklmnopqrstuvwxyz';
+  // Change this to uppercase
+  String alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 }
