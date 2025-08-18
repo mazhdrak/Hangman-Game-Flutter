@@ -1,7 +1,6 @@
 // lib/screens/game_screen.dart
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:hangman/utilities/ad_helper.dart';
 import 'package:hangman/components/word_button.dart';
 import 'package:hangman/screens/home_screen.dart';
@@ -12,6 +11,7 @@ import 'package:hangman/utilities/score_db.dart' as score_database;
 import 'package:hangman/utilities/user_scores.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:rflutter_alert/rflutter_alert.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class GameScreen extends StatefulWidget {
   const GameScreen({
@@ -31,7 +31,7 @@ class _GameScreenState extends State<GameScreen> {
   final database = score_database.openDB();
   int lives = 5;
   int maxHints = 1;
-  int remainingHints = 1;
+  int remainingHints = 1; // This is now unused but kept for score calculation logic
   int mistakes = 0;
   Alphabet englishAlphabet = Alphabet();
   String word = "";
@@ -41,7 +41,6 @@ class _GameScreenState extends State<GameScreen> {
   int totalScore = 0;
   bool finishedGame = false;
   bool _isLoadingWord = true;
-  RewardedAd? rewardedAd;
 
   @override
   void initState() {
@@ -49,18 +48,7 @@ class _GameScreenState extends State<GameScreen> {
     setLivesAndHints(widget.difficulty);
     initWords();
     AdHelper.loadInterstitialAd();
-    loadRewardedAd();
-  }
-
-  void loadRewardedAd() {
-    RewardedAd.load(
-      adUnitId: AdHelper.rewardedAdUnitId,
-      request: const AdRequest(),
-      rewardedAdLoadCallback: RewardedAdLoadCallback(
-        onAdLoaded: (ad) => rewardedAd = ad,
-        onAdFailedToLoad: (error) => rewardedAd = null,
-      ),
-    );
+    AdHelper.loadRewardedAd(); // Correctly pre-load the ad using the helper
   }
 
   void setLivesAndHints(String difficulty) {
@@ -280,32 +268,47 @@ class _GameScreenState extends State<GameScreen> {
                 children: [
                   Text("❤️ $lives", style: kWordCounterTextStyle),
                   Text("Score: $totalScore", style: kWordCounterTextStyle),
+                  // --- CORRECTED HINT BUTTON ---
                   IconButton(
-                    tooltip: 'Hint ($remainingHints left)',
+                    tooltip: 'Get a hint by watching an ad',
                     iconSize: 34,
-                    icon: Icon(MdiIcons.lightbulbOutline, color: remainingHints > 0 ? Colors.yellow : Colors.grey),
-                    onPressed: (remainingHints > 0 && !finishedGame)
-                        ? () {
-                            setState(() {
-                              List<int> hiddenIndices = [];
-                              for (int i = 0; i < hiddenWord.length; i++) {
-                                if (hiddenWord[i] == '_') {
-                                  hiddenIndices.add(i);
-                                }
+                    icon: Icon(MdiIcons.lightbulbOnOutline, color: Colors.yellow),
+                    onPressed: finishedGame ? null : () {
+                      // When the button is pressed, show a rewarded ad
+                      AdHelper.showRewardedAd(
+                        onUserEarnedReward: (RewardItem reward) {
+                          // This code runs ONLY if the user finishes the ad
+                          print("User earned reward of ${reward.amount}");
+                          setState(() {
+                            // --- Your original hint logic goes here ---
+                            List<int> hiddenIndices = [];
+                            for (int i = 0; i < hiddenWord.length; i++) {
+                              if (hiddenWord[i] == '_') {
+                                hiddenIndices.add(i);
                               }
-                              if (hiddenIndices.isNotEmpty) {
-                                final randomIndexInHidden = Random().nextInt(hiddenIndices.length);
-                                final actualIndexInWord = hiddenIndices[randomIndexInHidden];
-                                final letterToReveal = word[actualIndexInWord];
-                                final buttonIndex = englishAlphabet.alphabet.indexOf(letterToReveal.toUpperCase());
-                                if (buttonIndex != -1 && buttonStatus[buttonIndex]) {
-                                  handleLetterPress(buttonIndex);
-                                  remainingHints--;
-                                }
+                            }
+                            if (hiddenIndices.isNotEmpty) {
+                              final randomIndexInHidden = Random().nextInt(hiddenIndices.length);
+                              final actualIndexInWord = hiddenIndices[randomIndexInHidden];
+                              final letterToReveal = word[actualIndexInWord];
+                              final buttonIndex = englishAlphabet.alphabet.indexOf(letterToReveal.toUpperCase());
+                              if (buttonIndex != -1 && buttonStatus[buttonIndex]) {
+                                handleLetterPress(buttonIndex);
+                                // You might want to track hints used for scoring
+                                // For example: hintsUsedForScoring++;
                               }
-                            });
-                          }
-                        : null,
+                            }
+                            // ----------------------------------------
+                          });
+                        },
+                        onAdFailedToShow: () {
+                          // Optional: Show a message if the ad is not ready
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Hint not ready. Please try again in a moment.")),
+                          );
+                        },
+                      );
+                    },
                   ),
                 ],
               ),
