@@ -1,24 +1,74 @@
+// lib/main.dart
+import 'dart:async'; // for Completer
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+
 import 'package:hangman/screens/home_screen.dart';
 import 'package:hangman/screens/score_screen.dart';
 import 'package:hangman/screens/about_screen.dart';
 import 'package:hangman/utilities/constants.dart';
 import 'package:hangman/utilities/ad_helper.dart';
-import 'package:hangman/utilities/purchase_helper.dart'; // Import PurchaseHelper
+import 'package:hangman/utilities/purchase_helper.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await MobileAds.instance.initialize();  // Initialize AdMob SDK
-  await PurchaseHelper.init();            // Initialize In-App Purchase
+  await _initSdkAndConsent(); // initialize + consent + maybe preload ads
+  runApp(const MainApp());
+}
 
-  // Preload interstitial only if ads are not removed
+Future<void> _initSdkAndConsent() async {
+  await MobileAds.instance.initialize();
+  await PurchaseHelper.init();
+
+  // Request consent info update (EU/UK/CCPA handled by AdMob configuration)
+  final params = ConsentRequestParameters();
+  final completer = Completer<void>();
+
+  ConsentInformation.instance.requestConsentInfoUpdate(
+    params,
+        () async {
+      // Success
+      final formAvailable = await ConsentInformation.instance.isConsentFormAvailable();
+      if (formAvailable) {
+        ConsentForm.loadConsentForm(
+              (ConsentForm form) {
+            // show() is callback-based and returns void — do NOT await
+            form.show((FormError? formError) {
+              if (formError != null) {
+                debugPrint('Consent form error: $formError');
+              }
+              _maybePreloadAds();
+              if (!completer.isCompleted) completer.complete();
+            });
+          },
+              (FormError error) {
+            debugPrint('Consent form load failed: $error');
+            _maybePreloadAds();
+            if (!completer.isCompleted) completer.complete();
+          },
+        );
+      } else {
+        _maybePreloadAds();
+        if (!completer.isCompleted) completer.complete();
+      }
+    },
+        (FormError error) {
+      // Failure updating consent info – continue but log
+      debugPrint('Consent info update failed: $error');
+      _maybePreloadAds();
+      if (!completer.isCompleted) completer.complete();
+    },
+  );
+
+  await completer.future;
+}
+
+void _maybePreloadAds() {
   if (PurchaseHelper.shouldShowAds()) {
     AdHelper.loadInterstitialAd();
+    AdHelper.loadRewardedAd();
   }
-
-  runApp(const MainApp());
 }
 
 class MainApp extends StatelessWidget {
@@ -26,19 +76,19 @@ class MainApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Hide system UI and lock orientation
+    // Hide system UI and lock to portrait
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
-    SystemChrome.setPreferredOrientations([
+    SystemChrome.setPreferredOrientations(const [
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
     ]);
 
     return MaterialApp(
-      debugShowCheckedModeBanner: false, // <<< ADDED THIS LINE
+      debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         tooltipTheme: TooltipThemeData(
           decoration: BoxDecoration(
-            color: kTooltipColor, // Ensure kTooltipColor is defined in your constants.dart
+            color: kTooltipColor,
             borderRadius: BorderRadius.circular(5.0),
           ),
           textStyle: const TextStyle(
@@ -53,7 +103,7 @@ class MainApp extends StatelessWidget {
       ),
       initialRoute: 'homePage',
       routes: {
-        'homePage': (context) => HomeScreen(),
+        'homePage': (context) => const HomeScreen(),
         'scorePage': (context) => const ScoreScreen(),
         'aboutPage': (context) => const AboutScreen(),
       },

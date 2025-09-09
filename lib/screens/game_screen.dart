@@ -1,4 +1,5 @@
 // lib/screens/game_screen.dart
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:hangman/utilities/ad_helper.dart';
@@ -31,7 +32,7 @@ class _GameScreenState extends State<GameScreen> {
   final database = score_database.openDB();
   int lives = 5;
   int maxHints = 1;
-  int remainingHints = 1; // This is now unused but kept for score calculation logic
+  int remainingHints = 1; // kept for potential scoring; not decremented in current logic
   int mistakes = 0;
   Alphabet englishAlphabet = Alphabet();
   String word = "";
@@ -42,13 +43,43 @@ class _GameScreenState extends State<GameScreen> {
   bool finishedGame = false;
   bool _isLoadingWord = true;
 
+  // Rewarded ad readiness + fallback tracking
+  bool _rewardedReady = false;
+  int _adFailCount = 0;
+  int _freeHintsThisRound = 0;
+  bool _freeHintEligible = false;
+  static const int _adFailsBeforeFreeHint = 1;     // after 2 failed attempts we allow a free hint
+  static const int _maxFreeHintsPerRound = 1;      // cap per round
+  Timer? _rewardedWaitTimer;                       // fires if ad doesn't become ready in time
+  static const Duration _waitForAd = Duration(seconds: 6);
+
   @override
   void initState() {
     super.initState();
     setLivesAndHints(widget.difficulty);
     initWords();
     AdHelper.loadInterstitialAd();
-    AdHelper.loadRewardedAd(); // Correctly pre-load the ad using the helper
+    AdHelper.loadRewardedAd();
+
+    // Listen to ad readiness
+    AdHelper.rewardedReady.addListener(_onRewardedReadyChanged);
+    _rewardedReady = AdHelper.rewardedReady.value;
+  }
+
+  void _onRewardedReadyChanged() {
+    if (!mounted) return;
+    setState(() {
+      _rewardedReady = AdHelper.rewardedReady.value;
+      // If an ad becomes ready, we can disable the free-hint eligibility timer
+      if (_rewardedReady) _cancelRewardedWaitTimer();
+    });
+  }
+
+  @override
+  void dispose() {
+    AdHelper.rewardedReady.removeListener(_onRewardedReadyChanged);
+    _cancelRewardedWaitTimer();
+    super.dispose();
   }
 
   void setLivesAndHints(String difficulty) {
@@ -104,7 +135,32 @@ class _GameScreenState extends State<GameScreen> {
           Navigator.pop(context);
         }
       });
+      return;
     }
+
+    // Reset fallback counters/timer for the new round and (re)load rewarded
+    _resetFreeHintStateForNewRound();
+    AdHelper.loadRewardedAd();
+  }
+
+  void _resetFreeHintStateForNewRound() {
+    _adFailCount = 0;
+    _freeHintsThisRound = 0;
+    _freeHintEligible = false;
+    _cancelRewardedWaitTimer();
+    _rewardedWaitTimer = Timer(_waitForAd, () {
+      if (!mounted || finishedGame) return;
+      if (!_rewardedReady) {
+        // count as a failed availability attempt
+        _adFailCount++;
+        _updateFreeHintEligibility(reason: 'No ad available right now.');
+      }
+    });
+  }
+
+  void _cancelRewardedWaitTimer() {
+    _rewardedWaitTimer?.cancel();
+    _rewardedWaitTimer = null;
   }
 
   void handleLetterPress(int index) {
@@ -128,6 +184,7 @@ class _GameScreenState extends State<GameScreen> {
         if (hangState >= 6) {
           lives--;
           finishedGame = true;
+          _cancelRewardedWaitTimer();
           AdHelper.showInterstitialAd();
           if (lives <= 0) {
             showGameOver();
@@ -142,6 +199,7 @@ class _GameScreenState extends State<GameScreen> {
 
       if (!hiddenWord.contains('_')) {
         finishedGame = true;
+        _cancelRewardedWaitTimer();
         int roundScore = calculateScore(widget.difficulty, mistakes, maxHints - remainingHints);
         totalScore += roundScore;
         showScoreBreakdown(roundScore);
@@ -152,7 +210,7 @@ class _GameScreenState extends State<GameScreen> {
   int calculateScore(String difficulty, int mistakes, int hintsUsed) {
     int base = {'Easy': 10, 'Normal': 20, 'Hard': 35, 'Extreme': 50}[difficulty]!;
     int bonus = mistakes == 0 ? 10 : 0;
-    int penalty = hintsUsed * 2;
+    int penalty = hintsUsed * 2; // note: remainingHints isn't decremented currently
     return (base + bonus - penalty).clamp(0, 100);
   }
 
@@ -229,6 +287,46 @@ class _GameScreenState extends State<GameScreen> {
     ).show();
   }
 
+  // Reveal one random hidden letter (used for both ad reward and free fallback)
+  void _revealOneRandomLetter() {
+    final hiddenIndices = <int>[];
+    for (int i = 0; i < hiddenWord.length; i++) {
+      if (hiddenWord[i] == '_') hiddenIndices.add(i);
+    }
+    if (hiddenIndices.isEmpty) return;
+    final idx = hiddenIndices[Random().nextInt(hiddenIndices.length)];
+    final ch = word[idx].toUpperCase();
+    final btnIdx = englishAlphabet.alphabet.indexOf(ch);
+    if (btnIdx != -1 && buttonStatus[btnIdx]) {
+      handleLetterPress(btnIdx);
+    }
+  }
+
+  // Make free hint available (manual button) if thresholds are met
+  void _updateFreeHintEligibility({required String reason}) {
+    if (finishedGame || _freeHintsThisRound >= _maxFreeHintsPerRound) return;
+    if (_adFailCount >= _adFailsBeforeFreeHint && !_freeHintEligible) {
+      setState(() {
+        _freeHintEligible = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$reason Free hint is now available!')),
+      );
+    }
+  }
+
+  // When player taps the free hint button
+  void _grantFreeHintManually() {
+    if (!_freeHintEligible || _freeHintsThisRound >= _maxFreeHintsPerRound || finishedGame) return;
+    _freeHintsThisRound++;
+    _freeHintEligible = false; // consume availability
+    _revealOneRandomLetter();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('You used a free hint!')),
+    );
+    setState(() {}); // refresh button state
+  }
+
   WordButton createButton(int index) {
     return WordButton(
       buttonTitle: englishAlphabet.alphabet[index].toUpperCase(),
@@ -268,57 +366,69 @@ class _GameScreenState extends State<GameScreen> {
                 children: [
                   Text("❤️ $lives", style: kWordCounterTextStyle),
                   Text("Score: $totalScore", style: kWordCounterTextStyle),
-                  // --- CORRECTED HINT BUTTON ---
-                  IconButton(
-                    tooltip: 'Get a hint by watching an ad',
-                    iconSize: 34,
-                    icon: Icon(MdiIcons.lightbulbOnOutline, color: Colors.yellow),
-                    onPressed: finishedGame ? null : () {
-                      // When the button is pressed, show a rewarded ad
-                      AdHelper.showRewardedAd(
-                        onUserEarnedReward: (RewardItem reward) {
-                          // This code runs ONLY if the user finishes the ad
-                          print("User earned reward of ${reward.amount}");
-                          setState(() {
-                            // --- Your original hint logic goes here ---
-                            List<int> hiddenIndices = [];
-                            for (int i = 0; i < hiddenWord.length; i++) {
-                              if (hiddenWord[i] == '_') {
-                                hiddenIndices.add(i);
-                              }
-                            }
-                            if (hiddenIndices.isNotEmpty) {
-                              final randomIndexInHidden = Random().nextInt(hiddenIndices.length);
-                              final actualIndexInWord = hiddenIndices[randomIndexInHidden];
-                              final letterToReveal = word[actualIndexInWord];
-                              final buttonIndex = englishAlphabet.alphabet.indexOf(letterToReveal.toUpperCase());
-                              if (buttonIndex != -1 && buttonStatus[buttonIndex]) {
-                                handleLetterPress(buttonIndex);
-                                // You might want to track hints used for scoring
-                                // For example: hintsUsedForScoring++;
-                              }
-                            }
-                            // ----------------------------------------
-                          });
-                        },
-                        onAdFailedToShow: () {
-                          // Optional: Show a message if the ad is not ready
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Hint not ready. Please try again in a moment.")),
+
+                  // --- HINT ACTIONS (Ad + Free) ---
+                  Row(
+                    children: [
+                      // Ad-based hint
+                      IconButton(
+                        tooltip: _rewardedReady ? 'Get a hint (watch ad)' : 'Loading hint…',
+                        iconSize: 34,
+                        onPressed: finishedGame || !_rewardedReady
+                            ? null
+                            : () {
+                          AdHelper.showRewardedAd(
+                            onUserEarnedReward: (RewardItem reward) {
+                              setState(_revealOneRandomLetter);
+                            },
+                            onAdFailedToShow: () {
+                              // Count as a failed ad attempt and possibly enable free hint.
+                              _adFailCount++;
+                              _updateFreeHintEligibility(reason: 'No ad available.');
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Hint not ready. Please try again in a moment.')),
+                              );
+                            },
                           );
                         },
-                      );
-                    },
+                        icon: _rewardedReady
+                            ? const Icon(Icons.lightbulb_outline, color: Colors.yellow)
+                            : const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+
+                      const SizedBox(width: 8),
+
+                      // Manual Free Hint (only appears/enables when eligible)
+                      IconButton(
+                        tooltip: _freeHintEligible
+                            ? 'Free hint available'
+                            : 'Free hint unavailable',
+                        iconSize: 30,
+                        onPressed: (!_freeHintEligible || finishedGame)
+                            ? null
+                            : _grantFreeHintManually,
+                        icon: Icon(
+                          MdiIcons.lightbulbOn10,
+                          color: _freeHintEligible ? Colors.lightGreenAccent : Colors.grey,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
+
             Flexible(
               flex: 5,
               child: FittedBox(
                 child: Image.asset('images/$hangState.png', height: 900, width: 900, gaplessPlayback: true),
               ),
             ),
+
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
               child: FittedBox(
@@ -328,6 +438,7 @@ class _GameScreenState extends State<GameScreen> {
                 ),
               ),
             ),
+
             Flexible(
               flex: 5,
               child: Padding(

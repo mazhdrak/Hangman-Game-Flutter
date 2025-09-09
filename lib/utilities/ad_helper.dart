@@ -1,21 +1,18 @@
 // lib/utilities/ad_helper.dart
-
-import 'package:flutter/material.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class AdHelper {
-
-  // --- Banner Ad ---
+  // -------------------- Banner --------------------
   static BannerAd? _bannerAd;
   static bool _isBannerAdLoaded = false;
 
-  // YOUR REAL BANNER ID
-  static final String _androidBannerAdUnitId = 'ca-app-pub-7816037574743099/6084765847';
-  static final String _iosBannerAdUnitId = 'YOUR_IOS_BANNER_AD_UNIT_ID_HERE'; // TODO: Replace if you have an iOS version
+  static const String _androidBannerAdUnitId = 'ca-app-pub-7816037574743099/6084765847';
+  static const String _iosBannerAdUnitId = 'YOUR_IOS_BANNER_AD_UNIT_ID_HERE';
 
   static void loadBannerAd() {
-    // Don't load if already loaded or if there's no ad instance
     if (_isBannerAdLoaded) return;
 
     _bannerAd = BannerAd(
@@ -23,19 +20,16 @@ class AdHelper {
       request: const AdRequest(),
       size: AdSize.banner,
       listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          debugPrint('$ad loaded.');
-          _isBannerAdLoaded = true;
-        },
+        onAdLoaded: (ad) => _isBannerAdLoaded = true,
         onAdFailedToLoad: (ad, err) {
-          debugPrint('BannerAd failed to load: $err');
           ad.dispose();
+          _bannerAd = null;
+          _isBannerAdLoaded = false;
         },
       ),
     )..load();
   }
 
-  // Method to get the ad widget for the UI
   static Widget? getBannerAdWidget() {
     if (_isBannerAdLoaded && _bannerAd != null) {
       return SizedBox(
@@ -44,7 +38,6 @@ class AdHelper {
         child: AdWidget(ad: _bannerAd!),
       );
     }
-    // Return an empty container if ad is not loaded
     return const SizedBox.shrink();
   }
 
@@ -54,15 +47,13 @@ class AdHelper {
     _isBannerAdLoaded = false;
   }
 
-
-  // --- Interstitial Ad ---
+  // -------------------- Interstitial --------------------
   static InterstitialAd? _interstitialAd;
   static bool _isInterstitialLoading = false;
   static bool _isInterstitialLoaded = false;
 
-  // YOUR REAL INTERSTITIAL ID
-  static final String _androidInterstitialAdUnitId = 'ca-app-pub-7816037574743099/4400729645';
-  static final String _iosInterstitialAdUnitId = 'YOUR_IOS_INTERSTITIAL_AD_UNIT_ID_HERE'; // TODO: Replace if you have an iOS version
+  static const String _androidInterstitialAdUnitId = 'ca-app-pub-7816037574743099/4400729645';
+  static const String _iosInterstitialAdUnitId = 'YOUR_IOS_INTERSTITIAL_AD_UNIT_ID_HERE';
 
   static void loadInterstitialAd() {
     if (_isInterstitialLoading || _isInterstitialLoaded) return;
@@ -72,12 +63,12 @@ class AdHelper {
       adUnitId: Platform.isAndroid ? _androidInterstitialAdUnitId : _iosInterstitialAdUnitId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
-        onAdLoaded: (InterstitialAd ad) {
+        onAdLoaded: (ad) {
           _interstitialAd = ad;
           _isInterstitialLoaded = true;
           _isInterstitialLoading = false;
         },
-        onAdFailedToLoad: (LoadAdError error) {
+        onAdFailedToLoad: (error) {
           _interstitialAd?.dispose();
           _interstitialAd = null;
           _isInterstitialLoaded = false;
@@ -88,39 +79,53 @@ class AdHelper {
   }
 
   static void showInterstitialAd() {
-    if (!_isInterstitialLoaded || _interstitialAd == null) {
-      if (!_isInterstitialLoading) {
-        loadInterstitialAd();
-      }
+    final ad = _interstitialAd;
+    if (!_isInterstitialLoaded || ad == null) {
+      if (!_isInterstitialLoading) loadInterstitialAd();
       return;
     }
 
-    _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (InterstitialAd ad) {
+    // ✅ Make sure the ad is NOT immersive so the X is placed within content
+    ad.setImmersiveMode(false);
+
+    // ✅ Exit your app’s fullscreen while the ad is visible
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
         _interstitialAd = null;
         _isInterstitialLoaded = false;
-        loadInterstitialAd(); // Pre-load the next ad
+
+        // ✅ Restore your app’s immersive UI
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
+
+        loadInterstitialAd();
       },
-      onAdFailedToShowFullScreenContent: (InterstitialAd ad, AdError error) {
+      onAdFailedToShowFullScreenContent: (ad, error) {
         ad.dispose();
         _interstitialAd = null;
         _isInterstitialLoaded = false;
-        loadInterstitialAd(); // Pre-load the next ad
+
+        // ✅ Restore immersive on failure, too
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
+
+        loadInterstitialAd();
       },
     );
 
-    _interstitialAd!.show();
+    ad.show();
   }
 
-  // --- Rewarded Ad ---
+  // -------------------- Rewarded (for Hint) --------------------
   static RewardedAd? _rewardedAd;
   static bool _isRewardedAdLoading = false;
   static bool _isRewardedAdLoaded = false;
 
-  // YOUR REAL REWARDED INTERSTITIAL ID
-  static final String _androidRewardedAdUnitId = 'ca-app-pub-7816037574743099/3355783859';
-  static final String _iosRewardedAdUnitId = 'YOUR_IOS_REWARDED_AD_UNIT_ID_HERE'; // TODO: Replace if you have an iOS version
+  static final ValueNotifier<bool> rewardedReady = ValueNotifier<bool>(false);
+
+  static const String _androidRewardedAdUnitId = 'ca-app-pub-7816037574743099/3355783859';
+  static const String _iosRewardedAdUnitId = 'YOUR_IOS_REWARDED_AD_UNIT_ID_HERE';
 
   static void loadRewardedAd() {
     if (_isRewardedAdLoading || _isRewardedAdLoaded) return;
@@ -130,16 +135,38 @@ class AdHelper {
       adUnitId: Platform.isAndroid ? _androidRewardedAdUnitId : _iosRewardedAdUnitId,
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
-        onAdLoaded: (RewardedAd ad) {
+        onAdLoaded: (ad) {
           _rewardedAd = ad;
           _isRewardedAdLoaded = true;
           _isRewardedAdLoading = false;
+          rewardedReady.value = true;
+
+          ad.fullScreenContentCallback = FullScreenContentCallback(
+            onAdDismissedFullScreenContent: (ad) {
+              ad.dispose();
+              _rewardedAd = null;
+              _isRewardedAdLoaded = false;
+              rewardedReady.value = false;
+              SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
+              loadRewardedAd();
+            },
+            onAdFailedToShowFullScreenContent: (ad, error) {
+              ad.dispose();
+              _rewardedAd = null;
+              _isRewardedAdLoaded = false;
+              rewardedReady.value = false;
+              SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
+              loadRewardedAd();
+            },
+          );
         },
-        onAdFailedToLoad: (LoadAdError error) {
+        onAdFailedToLoad: (error) {
           _rewardedAd?.dispose();
           _rewardedAd = null;
           _isRewardedAdLoaded = false;
           _isRewardedAdLoading = false;
+          rewardedReady.value = false;
+          Future.delayed(const Duration(seconds: 3), loadRewardedAd);
         },
       ),
     );
@@ -150,37 +177,49 @@ class AdHelper {
     VoidCallback? onAdDismissed,
     VoidCallback? onAdFailedToShow,
   }) {
-    if (!_isRewardedAdLoaded || _rewardedAd == null) {
-      if (!_isRewardedAdLoading) {
-        loadRewardedAd();
-      }
+    final ad = _rewardedAd;
+    if (!_isRewardedAdLoaded || ad == null) {
       onAdFailedToShow?.call();
+      if (!_isRewardedAdLoading) loadRewardedAd();
       return;
     }
 
-    _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (RewardedAd ad) {
+    rewardedReady.value = false;
+
+    // ✅ Non-immersive ad so close button is visible
+    ad.setImmersiveMode(false);
+
+    // ✅ Exit fullscreen while ad is showing
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
         _rewardedAd = null;
         _isRewardedAdLoaded = false;
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
         onAdDismissed?.call();
-        loadRewardedAd(); // Pre-load the next ad
+        loadRewardedAd();
       },
-      onAdFailedToShowFullScreenContent: (RewardedAd ad, AdError error) {
+      onAdFailedToShowFullScreenContent: (ad, error) {
         ad.dispose();
         _rewardedAd = null;
         _isRewardedAdLoaded = false;
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
         onAdFailedToShow?.call();
-        loadRewardedAd(); // Pre-load the next ad
+        loadRewardedAd();
       },
     );
 
-    _rewardedAd!.show(onUserEarnedReward: (AdWithoutView ad, RewardItem reward) {
+    ad.show(onUserEarnedReward: (adWithoutView, reward) {
       onUserEarnedReward(reward);
     });
+
+    _rewardedAd = null;
+    _isRewardedAdLoaded = false;
   }
 
-  // --- Dispose All ---
+  // -------------------- Dispose All --------------------
   static void disposeAllAds() {
     disposeBannerAd();
 
@@ -193,16 +232,12 @@ class AdHelper {
     _rewardedAd = null;
     _isRewardedAdLoaded = false;
     _isRewardedAdLoading = false;
+    rewardedReady.value = false;
   }
 
-  // --- GETTER THAT WAS MISSING ---
   static String get rewardedAdUnitId {
-    if (Platform.isAndroid) {
-      return _androidRewardedAdUnitId;
-    } else if (Platform.isIOS) {
-      return _iosRewardedAdUnitId;
-    } else {
-      throw UnsupportedError('Unsupported platform');
-    }
+    if (Platform.isAndroid) return _androidRewardedAdUnitId;
+    if (Platform.isIOS) return _iosRewardedAdUnitId;
+    throw UnsupportedError('Unsupported platform');
   }
 }

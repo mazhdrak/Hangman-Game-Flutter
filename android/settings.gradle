@@ -3,40 +3,32 @@
 pluginManagement {
     def flutterSdkPath = {
         def properties = new Properties()
-        // Assuming local.properties is in the android directory.
-        // If it's in the root of your Flutter project, adjust the path:
-        // file("../local.properties").withInputStream { properties.load(it) }
         file("local.properties").withInputStream { properties.load(it) }
         def flutterSdk = properties.getProperty("flutter.sdk")
-        assert flutterSdk != null, "flutter.sdk not set in local.properties"
+        assert flutterSdk != null : "flutter.sdk not set in local.properties"
         return flutterSdk
     }()
 
-    // This line includes Flutter's own build logic, including the plugins.
-    includeBuild "$flutterSdkPath/packages/flutter_tools/gradle"
+    includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
 
     repositories {
         google()
         mavenCentral()
-        gradlePluginPortal() // Needed for discovering plugins like dev.flutter.flutter-plugin-loader
+        gradlePluginPortal()
     }
 }
 
 plugins {
-    // This plugin replaces the old app_plugin_loader.gradle script.
     id "dev.flutter.flutter-plugin-loader" version "1.0.0" apply true
-    id("org.jetbrains.kotlin.android") version "2.1.0" apply false
-    // Define the Android Gradle Plugin (AGP) version here but don't apply it globally.
-    // It will be applied in android/app/build.gradle.
-    // Choose an AGP version compatible with your Gradle version.
-    // If you updated to Gradle 8.7, AGP 8.5.0 is a good choice.
-    // If you used Gradle 8.5, AGP 8.4.0 or 8.4.1 would be suitable.
-    id "com.android.application" version "8.5.0" apply false // Example for Gradle 8.7+
-    // If you have library modules, you might also declare:
-    // id "com.android.library" version "8.5.0" apply false
+
+    // Kotlin 2.1.0 is fine (Flutter warns to upgrade to >= 2.1.0 soon)
+    id "org.jetbrains.kotlin.android" version "2.1.0" apply false
+
+    // ✅ Bump AGP to 8.6.1 to remove the deprecation warning
+    id "com.android.application" version "8.6.1" apply false
+    id "com.android.library" version "8.6.1" apply false
 }
 
-include ':app'
+include(":app")
 
-// **IMPORTANT:** Remove or comment out the old way of applying the script:
-// apply from: "$flutterSdkPath/packages/flutter_tools/gradle/app_plugin_loader.gradle" // <-- DELETE OR COMMENT THIS LINE
+// Do NOT apply old app_plugin_loader.gradle here.

@@ -1,14 +1,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Internet permission is required for ads to load -->
+    <!-- Network + Ads permissions -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
 
     <application
         android:label="hangman"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:isSplitRequired="true"
+        android:enableOnBackInvokedCallback="true"> <!-- ✅ ensures system back works inside ads -->
 
-        <!-- ↓ Add your AdMob App ID here (from AdMob → App settings) -->
+        <!-- AdMob App ID -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-7816037574743099~8734979916"/>
@@ -22,7 +25,6 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
 
-            <!-- Flutter’s normal theme meta-data -->
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
@@ -33,7 +35,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Flutter embedding version -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

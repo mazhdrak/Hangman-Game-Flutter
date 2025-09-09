@@ -1,3 +1,4 @@
+// android/app/build.gradle
 plugins {
     id "com.android.application"
     id "kotlin-android"
@@ -12,51 +13,47 @@ if (localPropertiesFile.exists()) {
     }
 }
 
-def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
-if (flutterVersionCode == null) {
-    flutterVersionCode = '1'
-}
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode') ?: '1'
+def flutterVersionName = localProperties.getProperty('flutter.versionName') ?: '1.0'
 
-def flutterVersionName = localProperties.getProperty('flutter.versionName')
-if (flutterVersionName == null) {
-    flutterVersionName = '1.0'
-}
-
-// <<< START: CODE TO READ YOUR KEY.PROPERTIES FILE >>>
+// --- Keystore ---
 def keyProperties = new Properties()
 def keyPropertiesFile = rootProject.file('key.properties')
 if (keyPropertiesFile.exists()) {
     keyProperties.load(new FileInputStream(keyPropertiesFile))
 }
-// <<< END: CODE TO READ YOUR KEY.PROPERTIES FILE >>>
 
 android {
     namespace "tavasoli.reza.flutter_hangman"
-    compileSdkVersion flutter.compileSdkVersion
-    ndkVersion flutter.ndkVersion
 
+    // Use Android 36 to satisfy plugin requirements
+    compileSdkVersion 36
+    ndkVersion "26.3.11579264"
+
+    defaultConfig {
+        applicationId "rumen.mazhdrakov_hangman"
+        minSdkVersion flutter.minSdkVersion
+        targetSdkVersion 36
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+    }
+
+    // AGP 8.6 / Gradle 8.7 -> Java 17 toolchain
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_11
-        targetCompatibility JavaVersion.VERSION_11
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
-
-    kotlinOptions {
-        jvmTarget = '11'
-    }
+    kotlinOptions { jvmTarget = '17' }
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
     }
 
-    defaultConfig {
-        applicationId "rumen.mazhdrakov_hangman"
-        minSdkVersion 23
-        targetSdkVersion flutter.targetSdkVersion
-        versionCode flutterVersionCode.toInteger()
-        versionName flutterVersionName
+    // Modern JNI packaging
+    packagingOptions {
+        jniLibs { useLegacyPackaging = false }
     }
 
-    // <<< START: ADDED SIGNING CONFIGURATIONS >>>
     signingConfigs {
         release {
             if (keyPropertiesFile.exists()) {
@@ -67,13 +64,13 @@ android {
             }
         }
     }
-    // <<< END: ADDED SIGNING CONFIGURATIONS >>>
-
 
     buildTypes {
         release {
-            // Pointing to our new release signing config
             signingConfig signingConfigs.release
+            // minifyEnabled true
+            // shrinkResources true
+            // proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }
@@ -82,4 +79,6 @@ flutter {
     source '../..'
 }
 
-dependencies {}
+dependencies {
+    // no manual deps needed; Flutter/Plugins handle them
+}
